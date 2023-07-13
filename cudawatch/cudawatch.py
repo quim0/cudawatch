@@ -103,7 +103,17 @@ def cudawatch():
     # genearted data every second)
 
     tbegin = time.time_ns()
-    subprocess.run(args.command.split())
+
+    try:
+        pgpu = subprocess.Popen(args.command.split())
+        pgpu.communicate()
+    except KeyboardInterrupt:
+        try:
+            pgpu.terminate()
+        except OSError:
+            pass
+        pgpu.communicate()
+
     tend = time.time_ns()
 
     # Kill the process running nvidia-smi when the main process is done
