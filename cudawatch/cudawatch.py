@@ -82,30 +82,31 @@ parameters_lambdas = [
     safeint, # "clocks.current.memory"
 ]
 
-QUERY_CMD = "nvidia-smi --format=csv,noheader,nounits --query-gpu={} -l 1".format(
-        ','.join(parameters_to_check)
-        )
-
 def cudawatch():
     """ This is executed when run from the command line """
     parser = argparse.ArgumentParser()
 
     # Required positional argument
     parser.add_argument("-c", "--command", type=str, help="Command to execute", required=True)
+    parser.add_argument("-s", "--sampling-interval", type=int, help="Sampling interval, in milliseconds", required=False, default=500)
+    parser.add_argument("-d", "--delay", type=int, help="Delay (in seconds) before the sampling starts", required=False, default=0)
     args = parser.parse_args()
 
+    sampling_interval = args.sampling_interval
+    QUERY_CMD = "nvidia-smi --format=csv,noheader,nounits --query-gpu={} --loop-ms={}".format(
+            ','.join(parameters_to_check), sampling_interval
+            )
 
     print( "--------------MONITORING-----------------------")
-
-    p = subprocess.Popen(QUERY_CMD.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    # TODO: Check if the process is too small to be significant (nvidia-smi
-    # genearted data every second)
 
     tbegin = time.time_ns()
 
     try:
         pgpu = subprocess.Popen(args.command.split())
+
+        time.sleep(args.delay)
+        p = subprocess.Popen(QUERY_CMD.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
         pgpu.communicate()
     except KeyboardInterrupt:
         try:
@@ -123,7 +124,7 @@ def cudawatch():
     print( "-----------------------------------------------")
 
     # Time in seconds
-    tdiff = (tend - tbegin) / 1000000000
+    tdiff = ((tend - tbegin) / 1000000000) - args.delay
     if tdiff < 1:
         print(f"{bcolors.FAIL}{bcolors.BOLD}ERROR{bcolors.ENDC}{bcolors.FAIL}: Sampling interval is 1s, executions <1s can not be profiled.{bcolors.ENDC}")
         quit()
@@ -174,8 +175,8 @@ def cudawatch():
     print(f"\t{bcolors.BOLD}{bcolors.UNDERLINE}Power{bcolors.ENDC}")
     print(f"\tMax power:  {max_power:.2f} W")
     print(f"\tMin power:  {min_power:.2f} W")
-    print(f"\tAvg power:  {sum_watts/num_lines:.2f} Wh")
-    print(f"\tUsed power: {sum_watts/3600:.2f} Wh")
+    print(f"\tAvg power:  {sum_watts/num_lines:.2f} W")
+    #print(f"\tUsed power: {sum_watts/3600:.2f} Wh")
 
 if __name__ == '__main__':
     cudawatch()
